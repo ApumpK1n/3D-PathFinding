@@ -17,7 +17,7 @@ namespace Pumpkin
         .
         000 ...
         */
-        public static readonly Vector3[] splitDirs = { new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, -1, 1), new Vector3(1, -1, 1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1)};
+        public static readonly Vector3[] splitDirs = { new Vector3(-1, -1, -1), new Vector3(1, -1, -1), new Vector3(-1, -1, 1), new Vector3(1, -1, 1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1), new Vector3(-1, 1, 1), new Vector3(1, 1, 1)};
         public enum NeighborDir
         {
             Left,
@@ -28,8 +28,7 @@ namespace Pumpkin
             Back,
         }
 
-
-        public static 
+        public bool IsBuilding { get { return toBeSplit.Count > 0; } }
 
         private BoxCollider boxCollider;
             
@@ -39,12 +38,20 @@ namespace Pumpkin
 
         private int cellCount;
 
+        private Vector3 tmpGetNodePos;
+
+        private Element tmpStart;
+        private Element tmpEnd;
+
+        private List<Element> elements = new List<Element>();
+
+        private static int[] neighborPathPositions = new int[32];
+
         private void Awake()
         {
             boxCollider = GetComponent<BoxCollider>();
             root = new Element(null, boxCollider.bounds, 0);
             toBeSplit = new Queue<Element>();
-
         }
 
         private void Start()
@@ -81,9 +88,9 @@ namespace Pumpkin
                 element.Neigbors = new Element[6];
                 for (int i = 0; i < 6; i++)
                 {
-                    List<Element> neighbors = new List<Element>();
-                    GetNeighbors(element, (NeighborDir)i, neighbors);
-                    element.Neigbors[i] = neighbors.ToArray();
+                    Element neighbor = GetNeighbor(element, (NeighborDir)i, element.Depth, element.Bounds.center);
+                    if (neighbor == null) elements.Add(element);
+                    element.Neigbors[i] = neighbor;
                 }
             }
             else
@@ -107,16 +114,16 @@ namespace Pumpkin
                     coordinate.x += 1;
                     break;
                 case NeighborDir.Top:
-                    coordinate.z += 1;
-                    break;
-                case NeighborDir.Bottom:
-                    coordinate.z -= 1;
-                    break;
-                case NeighborDir.Front:
                     coordinate.y += 1;
                     break;
-                case NeighborDir.Back:
+                case NeighborDir.Bottom:
                     coordinate.y -= 1;
+                    break;
+                case NeighborDir.Front:
+                    coordinate.z += 1;
+                    break;
+                case NeighborDir.Back:
+                    coordinate.z -= 1;
                     break;
             }
             return coordinate;
@@ -133,62 +140,172 @@ namespace Pumpkin
                     coordinate.x -= 1;
                     break;
                 case NeighborDir.Top:
-                    coordinate.z -= 1;
-                    break;
-                case NeighborDir.Bottom:
-                    coordinate.z += 1;
-                    break;
-                case NeighborDir.Front:
                     coordinate.y -= 1;
                     break;
-                case NeighborDir.Back:
+                case NeighborDir.Bottom:
                     coordinate.y += 1;
+                    break;
+                case NeighborDir.Front:
+                    coordinate.z -= 1;
+                    break;
+                case NeighborDir.Back:
+                    coordinate.z += 1;
                     break;
             }
             return coordinate;
         }
 
-        private void GetNeighbors(Element element, NeighborDir neighborDir, List<Element> neighbors)
+        private void StorePositionAtDepth(int depth, int pos)
         {
+            if (depth >= neighborPathPositions.Length)
+            {
+                Array.Resize(ref neighborPathPositions, depth + 1);
+            }
+
+            neighborPathPositions[depth] = pos;
+        }
+
+        private Element GetNeighbor(Element element, NeighborDir neighborDir, int startDepth, Vector3 center)
+        {
+            Element parent = element.parentNode;
+            if (parent == null) return null;
+
             Vector3Int coordinate = OffsetCoordinateInSameParent(neighborDir, element.Coordinate);
 
             Element neighbor = null;
-            if (element.IsCoordinateValidInParent(coordinate.x, coordinate.y, coordinate.z))
+            // 先尝试在同级下找
+            if (Element.IsCoordinateValidInParent(coordinate))
             {
-                int index = element.GetIndex(coordinate.x, coordinate.y, coordinate.z);
-                neighbor = element.parentNode.Children[index];
-            }
-            else
+                int index = Element.GetIndex(coordinate);
+                neighbor = parent.Children[index];
+                StorePositionAtDepth(parent.Depth, index);
+            } 
+            else 
             {
-                Element searchNode = element.parentNode.parentNode;
-                Element parentNode = element.parentNode;
-                if (searchNode != null)
+                // 跨节点
+                Element topmostNeighbor = GetNeighbor(parent, neighborDir, startDepth, center);
+                if (topmostNeighbor == null) 
                 {
-                    Vector3Int parentCoordinate = OffsetCoordinateInSameParent(neighborDir, parentNode.Coordinate);
-                    // 边界的点对应方向邻居为null
-                    if (parentNode.IsCoordinateValidInParent(parentCoordinate.x, parentCoordinate.y, parentCoordinate.z))
-                    {
-                        // 找到相邻父节点
-                        int index = parentNode.GetIndex(parentCoordinate.x, parentCoordinate.y, parentCoordinate.z);
-                        Element parentNeighbor = searchNode.Children[index];
-                        if (parentNeighbor.IsEmpty) // 相邻父节点没有分割，邻居设定为父节点
-                        {
-                            neighbor = parentNeighbor;
-                        }
-                        else
-                        {
-                            // 跨节点坐标寻找邻居
-                            Vector3Int neighborCoordinate = OffsetCoordinateCrossNode(neighborDir, element.Coordinate);
-                            int neighborIndex = parentNeighbor.GetIndex(neighborCoordinate.x, neighborCoordinate.y, neighborCoordinate.z);
-                            neighbor = parentNeighbor.Children[neighborIndex];
-                        }
+                    return null; // 边缘
+                } 
 
+                Element node = topmostNeighbor;
+                neighbor = node;
+                while (node.Children != null && node.Depth < startDepth)
+                {
+                    //Element searchNode = parentNode.parentNode;
+
+                    //Vector3Int parentOffsetCoordinate = OffsetCoordinateInSameParent(neighborDir, parentNode.Coordinate);
+                    //if (Element.IsCoordinateValidInParent(parentOffsetCoordinate))
+                    //{
+                    //    // 找到相邻父节点
+                    //    int index = Element.GetIndex(parentOffsetCoordinate);
+                    //    Element parentNeighbor = searchNode.Children[index];
+                    //    if (parentNeighbor.IsEmpty) // 相邻父节点没有分割，邻居设定为父节点
+                    //    {
+                    //        neighbor = parentNeighbor;
+                    //    }
+                    //    else
+                    //    {  
+                    //        // 跨节点坐标寻找邻居
+                    //        Vector3Int neighborCoordinate = OffsetCoordinateCrossNode(neighborDir, element.Coordinate);
+                    //        int neighborIndex = Element.GetIndex(neighborCoordinate);
+                    //        neighbor = parentNeighbor.Children[neighborIndex];
+                    //    }
+
+                    //    break;
+                    //}
+                    //else
+                    //{
+                    //    // 父节点边界的点需要再往上找，直到找到为止
+                    //    parentNode = searchNode;
+                    //}
+                    // 跨节点坐标寻找邻居
+                    //int neighborIndex;
+                    //if (node.Depth == startDepth + 1)
+                    //{
+                    //    Vector3Int neighborCoordinate = OffsetCoordinateCrossNode(neighborDir, startCoordinate);
+                    //    neighborIndex = Element.GetIndex(neighborCoordinate);
+                    //}
+                    //else
+                    //{
+                    //    neighborIndex = Element.GetIndex(node.Coordinate);
+                    //}
+                    float distance = float.MaxValue;
+                    foreach(var ele in node.Children)
+                    {
+                        float dis = Vector3.Distance(ele.Bounds.center, center);
+                        if (dis < distance)
+                        {
+                            neighbor = ele;
+                            distance = dis;
+                        }
                     }
+
+                    node = neighbor;
+
                 }
             }
 
-            neighbors.Add(neighbor);
+            return neighbor;
+        }
+
+
+        public List<Element> GetPath(Vector3 start, Vector3 end)
+        {
+            Element elementA = GetNode(start);
+            Element elementB = GetNode(end);
+
+            if (elementA != null && elementB != null)
+            {
+                tmpStart = elementA;
+                tmpEnd = elementB;
+                return PathFinderManager.GetInstance().RequestPathfind(elementA, elementB);
+            }
+            return null;
+        }
+
+        private Element GetNode(Vector3 position)
+        {
+            tmpGetNodePos = position;
+            return GetNode(root);
+        }
+
+        private Element GetNode(Element node)
+        {
+            if (node.Bounds.Contains(tmpGetNodePos))
+            {
+                if (node.Children != null)
+                {
+                    for (int i = 0; i < node.Children.Length; i++)
+                    {
+                        Element child = GetNode(node.Children[i]);
+                        if (child != null) return child;
+                    }
+                }
+                else
+                {
+                    return node;
+                }
+            }
+            return null;
+        }
+
+#if UNITY_EDITOR
+
+        private void OnDrawGizmosSelected()
+        {
+            if (root == null) return;
+            //root.DrawBounds();
+            if (tmpStart == null || tmpEnd == null) return;
+            //tmpStart.DrawSelf();
+            //tmpEnd.DrawSelf();
+
+            tmpStart.DrawNeighbors(Color.black);
+
+            tmpEnd.DrawNeighbors(Color.black);
 
         }
     }
+#endif
 }

@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Pumpkin
 {
@@ -16,18 +18,33 @@ namespace Pumpkin
     {
         private PathfindingAlgorith algorithm = PathfindingAlgorith.AStar;
 
+        private HashSet<Element> tmpDraw;
 
+        private Element tmpNode;
+
+        public List<Element> FindPath(Element start, Element target, PathfindingAlgorith pathfindingAlgorith)
+        {
+            switch (pathfindingAlgorith)
+            {
+                case PathfindingAlgorith.AStar:
+                    return FindPathAStar(start, target);
+            }
+            return null;
+        }
 
         // A star algorithm
+        // https://en.wikipedia.org/wiki/A*_search_algorithm
         private List<Element> FindPathAStar(Element start, Element target)
         {
-
             List<Element> foundPath = new List<Element>();
 
             List<Element> openSet = new List<Element>();
             HashSet<Element> closedSet = new HashSet<Element>();
 
             //We start adding to the open set
+            start.gCost = 0;
+            start.hCost = GetDistance(start, target);
+
             openSet.Add(start);
 
             while (openSet.Count > 0)
@@ -62,27 +79,29 @@ namespace Pumpkin
                     break;
                 }
 
+                if (currentNode.Neigbors == null) continue;
                 //if we haven't reached our target, then we need to start looking the neighbours
-                foreach (Element neighbour in GetNeighbours(currentNode, true))
+                foreach (Element neighbour in currentNode.Neigbors)
                 {
-                    if (!closedSet.Contains(neighbour))
-                    {
-                        //we create a new movement cost for our neighbours
-                        float newMovementCostToNeighbour = currentNode.gCost + GetDistance(currentNode, neighbour);
+                    if (neighbour == null) continue;
 
-                        //and if it's lower than the neighbour's cost
-                        if (newMovementCostToNeighbour < neighbour.gCost || !openSet.Contains(neighbour))
+                    if (closedSet.Contains(neighbour)) continue;
+
+                    //we create a new movement cost for our neighbours
+                    float newMovementCostToNeighbour = currentNode.gCost + GetDistance(currentNode, neighbour);
+
+                    //and if it's lower than the neighbour's cost
+                    if (newMovementCostToNeighbour < neighbour.gCost || !openSet.Contains(neighbour))
+                    {
+                        //we calculate the new costs
+                        neighbour.gCost = newMovementCostToNeighbour;
+                        neighbour.hCost = GetDistance(neighbour, target);
+                        //Assign the parent node
+                        neighbour.searchingParentNode = currentNode;
+                        //And add the neighbour node to the open set
+                        if (!openSet.Contains(neighbour))
                         {
-                            //we calculate the new costs
-                            neighbour.gCost = newMovementCostToNeighbour;
-                            neighbour.hCost = GetDistance(neighbour, target);
-                            //Assign the parent node
-                            neighbour.parentNode = currentNode;
-                            //And add the neighbour node to the open set
-                            if (!openSet.Contains(neighbour))
-                            {
-                                openSet.Add(neighbour);
-                            }
+                            openSet.Add(neighbour);
                         }
                     }
                 }
@@ -92,7 +111,7 @@ namespace Pumpkin
             return foundPath;
         }
 
-        private List<Element> RetracePath(Element startNode, Element endNode)
+            private List<Element> RetracePath(Element startNode, Element endNode)
         {
             //Retrace the path, is basically going from the endNode to the startNode
             List<Element> path = new List<Element>();
@@ -102,7 +121,7 @@ namespace Pumpkin
             {
                 path.Add(currentNode);
                 //by taking the parentNodes we assigned
-                currentNode = currentNode.parentNode;
+                currentNode = currentNode.searchingParentNode;
             }
 
             //then we simply reverse the list
@@ -110,5 +129,28 @@ namespace Pumpkin
 
             return path;
         }
+
+        public float GetDistance(Element elementA, Element elementB)
+        {
+            return Vector3.Distance(elementA.Bounds.center, elementB.Bounds.center);
+        }
+
+#if UNITY_EDITOR
+        
+        public void Draw()
+        {
+            if (tmpDraw == null) return;
+
+            if (tmpNode == null) return;
+
+
+            foreach (var element in tmpDraw)
+            {
+                element.DrawSelf();
+            }
+
+            tmpNode.DrawSelf(Color.green);
+        }
+#endif
     }
 }
