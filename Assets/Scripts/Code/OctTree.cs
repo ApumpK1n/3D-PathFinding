@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using UnityEngine;
 
 namespace Pumpkin
@@ -45,8 +46,6 @@ namespace Pumpkin
 
         private List<Element> elements = new List<Element>();
 
-        private static int[] neighborPathPositions = new int[32];
-
         private void Awake()
         {
             boxCollider = GetComponent<BoxCollider>();
@@ -66,7 +65,7 @@ namespace Pumpkin
 
                 element.IsEmpty = !Physics.CheckBox(element.Bounds.center, element.Bounds.extents, Quaternion.identity, mask, QueryTriggerInteraction.Ignore);
 
-                if (element.Bounds.size.magnitude > doubleMinCellSize && !element.IsEmpty)
+                if (element.Bounds.size.magnitude > doubleMinCellSize /*&& !element.IsEmpty*/)
                 {
                     element.Split(0.5f, splitDirs);
 
@@ -155,15 +154,6 @@ namespace Pumpkin
             return coordinate;
         }
 
-        private void StorePositionAtDepth(int depth, int pos)
-        {
-            if (depth >= neighborPathPositions.Length)
-            {
-                Array.Resize(ref neighborPathPositions, depth + 1);
-            }
-
-            neighborPathPositions[depth] = pos;
-        }
 
         private Element GetNeighbor(Element element, NeighborDir neighborDir, int startDepth, Vector3 center)
         {
@@ -178,7 +168,6 @@ namespace Pumpkin
             {
                 int index = Element.GetIndex(coordinate);
                 neighbor = parent.Children[index];
-                StorePositionAtDepth(parent.Depth, index);
             } 
             else 
             {
@@ -250,17 +239,15 @@ namespace Pumpkin
             return neighbor;
         }
 
-
-        public List<Element> GetPath(Vector3 start, Vector3 end)
+        public PathRequest GetPath(Vector3 start, Vector3 end)
         {
             Element elementA = GetNode(start);
             Element elementB = GetNode(end);
-
             if (elementA != null && elementB != null)
             {
                 tmpStart = elementA;
                 tmpEnd = elementB;
-                return PathFinderManager.GetInstance().RequestPathfind(elementA, elementB);
+                return PathFinderManager.GetInstance().RequestGetPath(elementA, elementB);
             }
             return null;
         }

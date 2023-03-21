@@ -18,8 +18,8 @@ namespace Pumpkin
 		[SerializeField] private OctTree octree;
 		[SerializeField] private LayerMask playerSeeLayerMask = -1;
 		[SerializeField] private GameObject playerObject;
-		private List<Element> oldPath;
-		private List<Element> newPath;
+		private PathRequest oldPath;
+		private PathRequest newPath;
 		private Rigidbody rigidbody;
 		private Vector3 currentDestination;
 		private Vector3 lastDestination;
@@ -35,32 +35,33 @@ namespace Pumpkin
 		// Update is called once per frame
 		void FixedUpdate()
 		{
-			//if ((newPath == null /*|| !newPath.isCalculating */) && Vector3.SqrMagnitude(target.transform.position - lastDestination) > maxDistanceRebuildPath && (!CanSeePlayer() || Vector3.Distance(target.position, transform.position) > minFollowDistance) && !octree.IsBuilding)
+            if ((newPath == null || !newPath.isCalculating ) && Vector3.SqrMagnitude(target.transform.position - lastDestination) > maxDistanceRebuildPath && (!CanSeePlayer() || Vector3.Distance(target.position, transform.position) > minFollowDistance) && !octree.IsBuilding)
+            {
+                lastDestination = target.transform.position;
+
+                oldPath = newPath;
+                newPath = octree.GetPath(transform.position, lastDestination);
+            }
+
+   //         if (newPath == null && Vector3.SqrMagnitude(target.transform.position - lastDestination) > maxDistanceRebuildPath
+			//	&& Vector3.Distance(target.position, transform.position) > minFollowDistance && !octree.IsBuilding)
 			//{
 			//	lastDestination = target.transform.position;
-
 			//	oldPath = newPath;
 			//	newPath = octree.GetPath(transform.position, lastDestination);
 			//}
 
-			if (newPath == null && Vector3.SqrMagnitude(target.transform.position - lastDestination) > maxDistanceRebuildPath
-				&& Vector3.Distance(target.position, transform.position) > minFollowDistance && !octree.IsBuilding)
-			{
-				lastDestination = target.transform.position;
-				oldPath = newPath;
-				newPath = octree.GetPath(transform.position, lastDestination);
-			}
-
 			var curPath = Path;
 
-			if (/*!curPath.isCalculating &&*/ curPath != null && curPath.Count > 0)
+			if (curPath != null && !curPath.isCalculating  && curPath.path.Count > 0)
 			{
 				if (Vector3.Distance(transform.position, target.position) < minFollowDistance && CanSeePlayer())
 				{
-					//curPath.Reset();
+					curPath.Reset();
+					return;
 				}
 
-				currentDestination = curPath[0].Bounds.center + Vector3.ClampMagnitude(rigidbody.position - curPath[0].Bounds.center, pathPointRadius);
+				currentDestination = curPath.path[0] + Vector3.ClampMagnitude(rigidbody.position - curPath.path[0], pathPointRadius);
 
 				rigidbody.velocity += Vector3.ClampMagnitude(currentDestination - transform.position, 1) * Time.deltaTime * acceleration;
 				float sqrMinReachDistance = minReachDistance * minReachDistance;
@@ -69,20 +70,20 @@ namespace Pumpkin
 				float shortestPathDistance = Vector3.SqrMagnitude(predictedPosition - currentDestination);
 				int shortestPathPoint = 0;
 
-				for (int i = 0; i < curPath.Count; i++)
+				for (int i = 0; i < curPath.path.Count; i++)
 				{
-					float sqrDistance = Vector3.SqrMagnitude(rigidbody.position - curPath[i].Bounds.center);
+					float sqrDistance = Vector3.SqrMagnitude(rigidbody.position - curPath.path[i]);
 					if (sqrDistance <= sqrMinReachDistance)
 					{
-						if (i < curPath.Count)
+						if (i < curPath.path.Count)
 						{
-							curPath.RemoveRange(0, i + 1);
+							curPath.path.RemoveRange(0, i + 1);
 						}
 						shortestPathPoint = 0;
 						break;
 					}
 
-					float sqrPredictedDistance = Vector3.SqrMagnitude(predictedPosition - curPath[i].Bounds.center);
+					float sqrPredictedDistance = Vector3.SqrMagnitude(predictedPosition - curPath.path[i]);
 					if (sqrPredictedDistance < shortestPathDistance)
 					{
 						shortestPathDistance = sqrPredictedDistance;
@@ -92,7 +93,7 @@ namespace Pumpkin
 
 				if (shortestPathPoint > 0)
 				{
-					curPath.RemoveRange(0, shortestPathPoint);
+					curPath.path.RemoveRange(0, shortestPathPoint);
 				}
 			}
 			else
@@ -111,11 +112,11 @@ namespace Pumpkin
 			return false;
 		}
 
-		private List<Element> Path
+		private PathRequest Path
 		{
 			get
 			{
-				if ((newPath == null /*|| newPath.isCalculating */) && oldPath != null)
+				if ((newPath == null || newPath.isCalculating ) && oldPath != null)
 				{
 					return oldPath;
 				}
@@ -127,7 +128,7 @@ namespace Pumpkin
 		{
 			get
 			{
-				return Path != null && Path.Count > 0;
+				return Path != null && Path.path.Count > 0;
 
 			}
 		}
@@ -136,7 +137,7 @@ namespace Pumpkin
 		{
 			get
 			{
-				if (Path != null && Path.Count > 0)
+				if (Path != null && Path.path.Count > 0)
 				{
 					return currentDestination;
 				}
@@ -159,15 +160,15 @@ namespace Pumpkin
 			if (Path != null)
 			{
 				var path = Path;
-				for (int i = 0; i < path.Count - 1; i++)
+				for (int i = 0; i < path.path.Count - 1; i++)
 				{
-					Vector3 pos = path[i].Bounds.center;
+					Vector3 pos = path.path[i];
 					Gizmos.color = Color.yellow;
 					Gizmos.DrawWireSphere(pos, minReachDistance);
 					Gizmos.color = Color.red;
 					Gizmos.DrawRay(pos, Vector3.ClampMagnitude(rigidbody.position - pos, pathPointRadius));
 					Gizmos.DrawWireSphere(pos, pathPointRadius);
-					Gizmos.DrawLine(pos, path[i+1].Bounds.center);
+					Gizmos.DrawLine(pos, path.path[i+1]);
 				}
 			}
 		}

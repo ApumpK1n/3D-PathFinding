@@ -7,8 +7,8 @@ namespace Pumpkin
 {
 	public class PathRequest
 	{
-		internal Vector3 from;
-		internal Vector3 to;
+		internal Element from;
+		internal Element to;
 		internal List<Vector3> path;
 		internal bool isCalulated;
 		internal bool isCalculating;

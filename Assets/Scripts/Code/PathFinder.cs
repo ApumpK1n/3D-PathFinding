@@ -16,30 +16,32 @@ namespace Pumpkin
 
     public class PathFinder
     {
-        private PathfindingAlgorith algorithm = PathfindingAlgorith.AStar;
+        List<Element> openSet;
+        HashSet<Element> closedSet;
 
-        private HashSet<Element> tmpDraw;
+        public PathFinder()
+        {
+            openSet = new List<Element>();
+            closedSet = new HashSet<Element>();
+        }
 
-        private Element tmpNode;
-
-        public List<Element> FindPath(Element start, Element target, PathfindingAlgorith pathfindingAlgorith)
+        public List<Vector3> FindPath(Element start, Element target, PathfindingAlgorith pathfindingAlgorith, List<Vector3> pathRequest)
         {
             switch (pathfindingAlgorith)
             {
                 case PathfindingAlgorith.AStar:
-                    return FindPathAStar(start, target);
+                    return FindPathAStar(start, target, pathRequest);
             }
             return null;
         }
 
         // A star algorithm
         // https://en.wikipedia.org/wiki/A*_search_algorithm
-        private List<Element> FindPathAStar(Element start, Element target)
+        private List<Vector3> FindPathAStar(Element start, Element target, List<Vector3> pathRequest)
         {
-            List<Element> foundPath = new List<Element>();
-
-            List<Element> openSet = new List<Element>();
-            HashSet<Element> closedSet = new HashSet<Element>();
+            pathRequest.Clear();
+            openSet.Clear();
+            closedSet.Clear();
 
             //We start adding to the open set
             start.gCost = 0;
@@ -75,7 +77,7 @@ namespace Pumpkin
                 if (currentNode.Equals(target))
                 {
                     //that means we reached our destination, so we are ready to retrace our path
-                    foundPath = RetracePath(start, target);
+                    RetracePath(start, target, pathRequest);
                     break;
                 }
 
@@ -108,49 +110,28 @@ namespace Pumpkin
             }
 
             //we return the path at the end
-            return foundPath;
+            return pathRequest;
         }
 
-            private List<Element> RetracePath(Element startNode, Element endNode)
+        private void RetracePath(Element startNode, Element endNode, List<Vector3> pathRequest)
         {
             //Retrace the path, is basically going from the endNode to the startNode
-            List<Element> path = new List<Element>();
             Element currentNode = endNode;
 
             while (currentNode != startNode)
             {
-                path.Add(currentNode);
+                pathRequest.Add(currentNode.Bounds.center);
                 //by taking the parentNodes we assigned
                 currentNode = currentNode.searchingParentNode;
             }
 
             //then we simply reverse the list
-            path.Reverse();
-
-            return path;
+            pathRequest.Reverse();
         }
 
         public float GetDistance(Element elementA, Element elementB)
         {
             return Vector3.Distance(elementA.Bounds.center, elementB.Bounds.center);
         }
-
-#if UNITY_EDITOR
-        
-        public void Draw()
-        {
-            if (tmpDraw == null) return;
-
-            if (tmpNode == null) return;
-
-
-            foreach (var element in tmpDraw)
-            {
-                element.DrawSelf();
-            }
-
-            tmpNode.DrawSelf(Color.green);
-        }
-#endif
     }
 }
