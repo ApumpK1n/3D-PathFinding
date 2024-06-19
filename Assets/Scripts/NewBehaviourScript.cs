@@ -14,14 +14,28 @@ public class NewBehaviourScript : MonoBehaviour
         int color;
     }
 
+    struct SingleResult
+    {
+        public List<int[]> TaraQueue;
+        public List<int> ExcludeIndex;
+    }
+
+    struct PAIQueue
+    {
+        List<PAI> Queue;
+    }
+
     int[] Nums = new int[10] { 5, 6, 6, 6, 7, 8, 8, 8, 8, 10 };
     int[] Colors = new int[10] { 1, 1, 2, 3, 1, 2, 3, 4, 1, 1 };
+
+    int[] Nums1 = new int[10] { 6, 6, 6, 6, 7, 8, 8, 8, 8, 10 };
+    int[] Colors1 = new int[10] { 1, 2, 3, 4, 1, 1, 2, 3, 4, 1 };
 
 
     //Dictionary<int, int> colorDict = new Dictionary<int, int> { { 5, 1 }, { 6, 1 }, { 6, 2 }, { 6, 3 }, { 7, 1 }, { 8, 2 }, { 8, 3 }, { 8, 4 }, { 9, 1 }, { 10, 1 } };
     //Dictionary<int, int> colorDict = new Dictionary<int, int> { { 5, 1 }, { 6, 1 }, { 6, 2 }, { 6, 3 }, { 7, 1 }, { 8, 2 }, { 8, 3 }, { 8, 4 }, { 9, 1 }, { 10, 1 } };
     Dictionary<int, int[]> colorDict = new Dictionary<int, int[]>();
-    List<List<PAI>> Result1 = new List<List<PAI>>();
+    List<SingleResult> Results = new List<SingleResult>();
     void Start()
     {
 
@@ -32,34 +46,120 @@ public class NewBehaviourScript : MonoBehaviour
         //{
         //    Colors[i] = colorDict[Nums[i]];
         //}
-        PresetNums(Nums);
-        PresetStraight(Nums, Colors);
+        //PresetNums(Nums);
+
+
+        //PresetStraight(Nums, Colors);
+        //GetOptimalSolution(Nums, Colors, new int[10], Results);
+        Results.Clear();
+        GetAllSolutions(Nums, Colors, Results);
+
+        foreach(SingleResult singleResult in Results)
+        {
+            string str = "";
+            foreach(var taraIndexes in singleResult.TaraQueue)
+            {
+                foreach(var taraIndex in taraIndexes)
+                {
+                    str += Nums[taraIndex];
+                }
+ 
+            }
+            for(int index=0; index<Nums.Length;index++)
+            {
+                if (singleResult.ExcludeIndex.Contains(index)) continue;
+                str += Nums[index];
+            }
+            Debug.Log("queue" + str);
+        }
     }
 
-    void PresetNums(int[] nums)
+    //void GetOptimalSolution(int[] nums, int[] colors, int[] excludeIndex, List<SingleResult> results)
+    //{
+    //    PresetNums(nums, colors, excludeIndex);
+    //    PresetStraight(nums, colors, excludeIndex);
+    //}
+
+    private SingleResult GetDefaultSingleResult()
+    {
+        return new SingleResult()
+        {
+            TaraQueue = new List<int[]>(),
+            ExcludeIndex = new List<int>(),
+        };
+    }
+
+    void GetAllSolutions(int[] nums, int[] colors, List<SingleResult> results)
+    {
+        bool hasTara = false;
+        if (results.Count == 0)
+        {
+            hasTara = PresetNums(nums, GetDefaultSingleResult(), results);
+            //PresetStraight(nums, GetDefaultSingleResult(), colors, excludeIndex);
+        }
+        else
+        {
+            foreach(SingleResult singleResult in results)
+            {
+                if (singleResult.ExcludeIndex.Count < nums.Length)
+                {
+                    hasTara = PresetNums(nums, singleResult, results);
+                }
+
+            }
+
+            //PresetStraight(nums, colors, excludeIndex);
+        }
+
+
+        // 更新excludeIndex;  excludeIndex应该是和单个结果绑定 换成还存在的下标，即散牌
+
+
+        // 怎么判断递归继续和打断
+        // 只要这次递归有一个队列继续发现了塔拉，证明还可能有塔拉
+        if(hasTara)
+        {
+            //继续递归
+            GetAllSolutions(nums, colors, results);
+        }
+    }
+
+    bool PresetNums(int[] nums, SingleResult singleResult, List<SingleResult> results)
     {
         // 处理三条及以上的情况,即相同数字大于等于三个
         int min = 0;
         int step = 2;
         bool findTala = false;
+        bool hasTara = false;
         while (min < nums.Length)
         {
+            if (singleResult.ExcludeIndex.Contains(min)) continue;
+
             int max = min + step;
             Debug.Log("Min:" + min);
             if (max < nums.Length && nums[min] == nums[max]) // 符合塔拉规则
             {
-                List<List<int>> tala = new List<List<int>>();
+                int[] tara = new int[max - min + 1];
                 for(int index = min; index <= max; index++)
                 {
                     //List<int> pai = new List<int>() { nums[index], colors[index]};
                     //tala.Add(pai);
+                    tara[index - min] = index;
+
                 }
+
+                SingleResult newSingleResult = GetDefaultSingleResult();
+                newSingleResult.TaraQueue.AddRange(singleResult.TaraQueue);
+                newSingleResult.TaraQueue.Add(tara);
+                newSingleResult.ExcludeIndex.AddRange(tara);
+
+                results.Add(newSingleResult);
                 //results.Add(tala);
                 Debug.Log(min);
                 Debug.Log($"{step}");
                 step++;
                 findTala = true;
-
+                hasTara = true;
             }
             else
             {
@@ -76,8 +176,7 @@ public class NewBehaviourScript : MonoBehaviour
                 findTala = false;
             }
         }
-
-        
+        return hasTara;
     }
 
     void PresetStraight(int[] nums, int[] colors)
