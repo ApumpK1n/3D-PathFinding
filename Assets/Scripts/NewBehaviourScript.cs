@@ -52,25 +52,27 @@ public class NewBehaviourScript : MonoBehaviour
         //PresetStraight(Nums, Colors);
         //GetOptimalSolution(Nums, Colors, new int[10], Results);
         Results.Clear();
-        GetAllSolutions(Nums, Colors, Results);
+        GetAllSolutions(Nums, Colors, Results, true);
 
         foreach(SingleResult singleResult in Results)
         {
             string str = "";
             foreach(var taraIndexes in singleResult.TaraQueue)
             {
-                foreach(var taraIndex in taraIndexes)
+                str += "Tara:";
+                foreach (var taraIndex in taraIndexes)
                 {
-                    str += Nums[taraIndex];
+                    str += $"{Nums[taraIndex]}:{Colors[taraIndex]}/";
                 }
  
             }
+            str += "san:";
             for(int index=0; index<Nums.Length;index++)
             {
                 if (singleResult.ExcludeIndex.Contains(index)) continue;
-                str += Nums[index];
+                str += $"{Nums[index]}:{Colors[index]}/"; ;
             }
-            Debug.Log("queue" + str);
+            Debug.Log("queue:" + str);
         }
     }
 
@@ -89,26 +91,30 @@ public class NewBehaviourScript : MonoBehaviour
         };
     }
 
-    void GetAllSolutions(int[] nums, int[] colors, List<SingleResult> results)
+    void GetAllSolutions(int[] nums, int[] colors, List<SingleResult> results, bool start)
     {
-        bool hasTara = false;
-        if (results.Count == 0)
+        bool hasNumsTara = false;
+        bool hasStraightTara = false;
+        if (start)
         {
-            hasTara = PresetNums(nums, GetDefaultSingleResult(), results);
-            //PresetStraight(nums, GetDefaultSingleResult(), colors, excludeIndex);
+            hasNumsTara = PresetNums(nums, colors, GetDefaultSingleResult(), results);
+            hasStraightTara = PresetStraight(nums, colors, GetDefaultSingleResult(), results);
         }
         else
         {
-            foreach(SingleResult singleResult in results)
+            for(int i=0; i<results.Count; i++)
             {
+                SingleResult singleResult = results[i];
                 if (singleResult.ExcludeIndex.Count < nums.Length)
                 {
-                    hasTara = PresetNums(nums, singleResult, results);
+                    bool findNumsTara = PresetNums(nums, colors, singleResult, results);
+                    hasNumsTara = findNumsTara ? findNumsTara : hasNumsTara;
+                    bool findStraightTara = PresetStraight(nums, colors, singleResult, results);
+                    hasStraightTara = findStraightTara ? findStraightTara : hasStraightTara;
                 }
-
+                results.Remove(singleResult);
             }
 
-            //PresetStraight(nums, colors, excludeIndex);
         }
 
 
@@ -117,23 +123,30 @@ public class NewBehaviourScript : MonoBehaviour
 
         // 怎么判断递归继续和打断
         // 只要这次递归有一个队列继续发现了塔拉，证明还可能有塔拉
-        if(hasTara)
+        if(hasNumsTara || hasStraightTara)
         {
             //继续递归
-            GetAllSolutions(nums, colors, results);
+            GetAllSolutions(nums, colors, results, false);
         }
     }
 
-    bool PresetNums(int[] nums, SingleResult singleResult, List<SingleResult> results)
+    bool PresetNums(int[] nums, int[] colors, SingleResult singleResult, List<SingleResult> results) // 需要排序
     {
         // 处理三条及以上的情况,即相同数字大于等于三个
         int min = 0;
         int step = 2;
         bool findTala = false;
         bool hasTara = false;
+
+        // 找到所有三条和四条的情况 考虑花色
         while (min < nums.Length)
         {
-            if (singleResult.ExcludeIndex.Contains(min)) continue;
+            if (singleResult.ExcludeIndex.Contains(min))
+            {
+                min++;
+                step = 2;
+                continue;
+            }
 
             int max = min + step;
             Debug.Log("Min:" + min);
@@ -151,9 +164,46 @@ public class NewBehaviourScript : MonoBehaviour
                 SingleResult newSingleResult = GetDefaultSingleResult();
                 newSingleResult.TaraQueue.AddRange(singleResult.TaraQueue);
                 newSingleResult.TaraQueue.Add(tara);
+                newSingleResult.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
                 newSingleResult.ExcludeIndex.AddRange(tara);
-
                 results.Add(newSingleResult);
+
+                if (step == 3) //四条的情况 三条需要排列组合 总共四种情况 012 013 023 123
+                {
+                    int[] tara1 = new int[3] { min, min + 1, min + 2 }; // 上一次已经添加过了
+                    int[] tara2 = new int[3] { min, min + 1, min + 3 };
+                    int[] tara3 = new int[3] { min, min + 2, min + 3 };
+                   // int[] tara4 = new int[3] { min + 1, min + 2, min + 3 };
+
+                    //SingleResult newSingleResult1 = GetDefaultSingleResult();
+                    //newSingleResult1.TaraQueue.AddRange(singleResult.TaraQueue);
+                    //newSingleResult1.TaraQueue.Add(tara1);
+                    //newSingleResult1.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
+                    //newSingleResult1.ExcludeIndex.AddRange(tara1);
+                    //results.Add(newSingleResult1);
+
+                    SingleResult newSingleResult2 = GetDefaultSingleResult();
+                    newSingleResult2.TaraQueue.AddRange(singleResult.TaraQueue);
+                    newSingleResult2.TaraQueue.Add(tara2);
+                    newSingleResult2.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
+                    newSingleResult2.ExcludeIndex.AddRange(tara2);
+                    results.Add(newSingleResult2);
+
+                    SingleResult newSingleResult3 = GetDefaultSingleResult();
+                    newSingleResult3.TaraQueue.AddRange(singleResult.TaraQueue);
+                    newSingleResult3.TaraQueue.Add(tara3);
+                    newSingleResult3.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
+                    newSingleResult3.ExcludeIndex.AddRange(tara3);
+                    results.Add(newSingleResult3);
+
+                    //SingleResult newSingleResult4 = GetDefaultSingleResult();
+                    //newSingleResult4.TaraQueue.AddRange(singleResult.TaraQueue);
+                    //newSingleResult4.TaraQueue.Add(tara4);
+                    //newSingleResult4.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
+                    //newSingleResult4.ExcludeIndex.AddRange(tara4);
+                    //results.Add(newSingleResult4);
+                }
+
                 //results.Add(tala);
                 Debug.Log(min);
                 Debug.Log($"{step}");
@@ -165,7 +215,7 @@ public class NewBehaviourScript : MonoBehaviour
             {
                 if (findTala)
                 {
-                    min = max;
+                    min++;
                     step = 2;
                 }
                 else
@@ -179,43 +229,57 @@ public class NewBehaviourScript : MonoBehaviour
         return hasTara;
     }
 
-    void PresetStraight(int[] nums, int[] colors)
+    bool PresetStraight(int[] nums, int[] colors, SingleResult singleResult, List<SingleResult> results)
     {
         // 处理同花顺的情况
+        bool findStraight = false;
         int min = 0;
         int count = 1;
-        for (min=0; min < nums.Length; min++)
+
+        List<int> tara = new List<int>();
+        for (min=0; min < nums.Length; min++) // 找到所有可能的同花顺
         {
+            if (singleResult.ExcludeIndex.Contains(min)) continue; // 下标已经被排除
+
             count = 1;
-            int numMin = nums[min];
+            tara.Clear();
+            tara.Add(min);
+            int numMin = nums[min]; // 开始的数字
             while (true)
             {
-                int num = numMin + 1;
-                if (!nums.Contains(num)) break;
-                for (int max = min + 1; max < nums.Length; max++)// 这里需要改成直接获取数字对应的值
-                {
-                    if (nums[max] != num) continue;
+                int compareNum = numMin + 1;
+                if (!nums.Contains(compareNum)) break; // 手牌没有对应的数字
 
-                    if (colors[max] == colors[min])
+                for (int max = min + 1; max < nums.Length; max++)// 在后续的值中找数字 这里需要改成直接获取数字对应的值
+                {
+                    if (singleResult.ExcludeIndex.Contains(max)) continue; // 下标已经被排除
+                    if (nums[max] != compareNum) continue;
+
+                    if (colors[max] == colors[min]) // 花色相同
                     {
+
                         count++;
+                        tara.Add(max);
                         if (count >= 3)
                         {
-                            Debug.Log($"num:{num},color:{colors[max]}, count:{count}");
+                            findStraight = true;
+                            Debug.Log($"num:{compareNum}, count:{count},color:{colors[max]}");
+
+                            SingleResult newSingleResult = GetDefaultSingleResult();
+                            newSingleResult.TaraQueue.AddRange(singleResult.TaraQueue);
+                            newSingleResult.TaraQueue.Add(tara.ToArray());
+                            newSingleResult.ExcludeIndex.AddRange(singleResult.ExcludeIndex);
+                            newSingleResult.ExcludeIndex.AddRange(tara.ToArray());
+
+                            results.Add(newSingleResult);
                         }
                     }
                 }
                 numMin++;
             }
-           
-
-
         }
+
+        return findStraight;
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
